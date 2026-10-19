@@ -1,0 +1,376 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Private user account profile and onboarding state.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "photoPath": { "type": "string", "maxLength": 500 },
+        "preferredLocale": { "type": "string", "enum": ["en-NG", "en-GB", "en-US"], "maxLength": 16 },
+        "accountStatus": { "type": "string", "enum": ["active", "suspended", "deletion_pending", "deleted"], "maxLength": 32 },
+        "onboardingStatus": { "type": "string", "enum": ["incomplete", "in_progress", "complete"], "maxLength": 32 },
+        "intendedRole": { "type": "string", "enum": ["customer", "vendor", "both"], "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "lastLoginAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "preferredLocale", "accountStatus", "onboardingStatus", "intendedRole", "createdAt", "updatedAt", "lastLoginAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Platform administrator authorization record.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "VendorOrganization": {
+      "title": "VendorOrganization",
+      "description": "Vendor business profile and ownership record.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "slug": { "type": "string", "minLength": 2, "maxLength": 120, "pattern": "^[a-z0-9\\-]+$" },
+        "businessType": { "type": "string", "enum": ["sole-proprietor", "registered-company", "partnership", "not-specified"], "maxLength": 32 },
+        "description": { "type": "string", "minLength": 10, "maxLength": 2000 },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "publicEmail": { "type": "string", "maxLength": 254 },
+        "publicPhone": { "type": "string", "maxLength": 32 },
+        "whatsappNumber": { "type": "string", "maxLength": 32 },
+        "websiteUrl": { "type": "string", "maxLength": 300 },
+        "city": { "type": "string", "enum": ["Warri", "Effurun"], "maxLength": 64 },
+        "state": { "type": "string", "maxLength": 64 },
+        "countryCode": { "type": "string", "enum": ["NG"], "maxLength": 4 },
+        "status": { "type": "string", "enum": ["active", "suspended", "archived"], "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "slug", "businessType", "description", "ownerUid", "city", "state", "countryCode", "status", "createdAt", "updatedAt"]
+    },
+    "VendorMembership": {
+      "title": "VendorMembership",
+      "description": "Maps a user to a vendor organization and role.",
+      "type": "object",
+      "properties": {
+        "organizationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "role": { "type": "string", "enum": ["owner", "manager", "editor", "viewer"], "maxLength": 32 },
+        "status": { "type": "string", "enum": ["active", "revoked"], "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["organizationId", "uid", "role", "status", "createdAt", "updatedAt"]
+    },
+    "Listing": {
+      "title": "Listing",
+      "description": "Public venue or event service provider listing.",
+      "type": "object",
+      "properties": {
+        "organizationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "listingType": { "type": "string", "enum": ["venue", "service-provider"], "maxLength": 32 },
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "slug": { "type": "string", "minLength": 2, "maxLength": 140, "pattern": "^[a-z0-9\\-]+$" },
+        "headline": { "type": "string", "minLength": 4, "maxLength": 160 },
+        "description": { "type": "string", "minLength": 10, "maxLength": 3000 },
+        "categoryId": { "type": "string", "minLength": 2, "maxLength": 64, "pattern": "^[a-z0-9\\-]+$" },
+        "city": { "type": "string", "enum": ["Warri", "Effurun"], "maxLength": 64 },
+        "state": { "type": "string", "maxLength": 64 },
+        "countryCode": { "type": "string", "enum": ["NG"], "maxLength": 4 },
+        "addressDisplay": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "serviceAreas": { "type": "array" },
+        "currency": { "type": "string", "enum": ["NGN"], "maxLength": 4 },
+        "pricingModel": { "type": "string", "enum": ["fixed", "starting-at", "range", "custom-quote", "not-provided"], "maxLength": 32 },
+        "minAmountMinor": { "type": "integer" },
+        "maxAmountMinor": { "type": "integer" },
+        "displayPriceText": { "type": "string", "maxLength": 80 },
+        "capacityMin": { "type": "integer" },
+        "capacityMax": { "type": "integer" },
+        "indoorOutdoor": { "type": "string", "enum": ["indoor", "outdoor", "both", "not-specified"], "maxLength": 32 },
+        "venueType": { "type": "string", "maxLength": 64 },
+        "amenities": { "type": "array" },
+        "cateringPolicy": { "type": "string", "maxLength": 120 },
+        "decorationPolicy": { "type": "string", "maxLength": 120 },
+        "alcoholPolicy": { "type": "string", "maxLength": 120 },
+        "coverImageUrl": { "type": "string", "maxLength": 300000 },
+        "contactVisibility": { "type": "string", "enum": ["public", "after-enquiry", "private"], "maxLength": 32 },
+        "acceptsEnquiries": { "type": "boolean" },
+        "publicationStatus": { "type": "string", "enum": ["draft", "pending_review", "published", "rejected", "archived"], "maxLength": 32 },
+        "moderationStatus": { "type": "string", "enum": ["not_submitted", "pending", "approved", "rejected", "changes_requested"], "maxLength": 32 },
+        "moderationNotes": { "type": "string", "maxLength": 1000 },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["organizationId", "ownerUid", "listingType", "name", "slug", "headline", "description", "categoryId", "city", "state", "countryCode", "addressDisplay", "serviceAreas", "currency", "pricingModel", "displayPriceText", "indoorOutdoor", "amenities", "contactVisibility", "acceptsEnquiries", "publicationStatus", "moderationStatus", "createdBy", "updatedBy", "createdAt", "updatedAt"]
+    },
+    "ListingService": {
+      "title": "ListingService",
+      "description": "Service package offered under a listing.",
+      "type": "object",
+      "properties": {
+        "listingId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "description": { "type": "string", "minLength": 5, "maxLength": 1500 },
+        "categoryId": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "inclusions": { "type": "array" },
+        "currency": { "type": "string", "enum": ["NGN"], "maxLength": 4 },
+        "pricingModel": { "type": "string", "enum": ["fixed", "starting-at", "range", "custom-quote"], "maxLength": 32 },
+        "amountMinor": { "type": "integer" },
+        "status": { "type": "string", "enum": ["draft", "published", "archived"], "maxLength": 32 },
+        "sortOrder": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["listingId", "organizationId", "ownerUid", "name", "description", "categoryId", "inclusions", "currency", "pricingModel", "amountMinor", "status", "sortOrder", "createdAt", "updatedAt"]
+    },
+    "ListingMedia": {
+      "title": "ListingMedia",
+      "description": "Ordered media metadata for a listing.",
+      "type": "object",
+      "properties": {
+        "listingId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "organizationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "imageUrl": { "type": "string", "minLength": 5, "maxLength": 300000 },
+        "altText": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "caption": { "type": "string", "maxLength": 240 },
+        "sortOrder": { "type": "integer" },
+        "moderationStatus": { "type": "string", "enum": ["pending", "approved", "rejected"], "maxLength": 32 },
+        "publicationStatus": { "type": "string", "enum": ["published", "archived"], "maxLength": 32 },
+        "uploadedBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["listingId", "organizationId", "ownerUid", "imageUrl", "altText", "sortOrder", "moderationStatus", "publicationStatus", "uploadedBy", "createdAt", "updatedAt"]
+    },
+    "SavedListing": {
+      "title": "SavedListing",
+      "description": "Customer saved listing reference.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "listingId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "listingId", "createdAt"]
+    },
+    "Comparison": {
+      "title": "Comparison",
+      "description": "Customer venue comparison shortlist (up to 3 venues).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "listingIds": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "listingIds", "createdAt", "updatedAt"]
+    },
+    "EventWorkspace": {
+      "title": "EventWorkspace",
+      "description": "Customer event planning workspace.",
+      "type": "object",
+      "properties": {
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "eventType": { "type": "string", "enum": ["wedding", "birthday", "corporate", "burial", "anniversary", "religious", "conference", "other"], "maxLength": 32 },
+        "eventDate": { "type": "string", "maxLength": 32 },
+        "timeZone": { "type": "string", "enum": ["Africa/Lagos"], "maxLength": 32 },
+        "guestCount": { "type": "integer" },
+        "city": { "type": "string", "enum": ["Warri", "Effurun"], "maxLength": 64 },
+        "state": { "type": "string", "maxLength": 64 },
+        "countryCode": { "type": "string", "enum": ["NG"], "maxLength": 4 },
+        "currency": { "type": "string", "enum": ["NGN"], "maxLength": 4 },
+        "budgetAmountMinor": { "type": "integer" },
+        "notes": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["planning", "completed", "cancelled", "archived"], "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerUid", "title", "eventType", "timeZone", "city", "state", "countryCode", "currency", "status", "createdAt", "updatedAt"]
+    },
+    "Enquiry": {
+      "title": "Enquiry",
+      "description": "Customer enquiry to a venue or service provider.",
+      "type": "object",
+      "properties": {
+        "customerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "customerEmail": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
+        "listingId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "listingName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "organizationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "vendorOwnerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "eventId": { "type": "string", "maxLength": 128 },
+        "serviceId": { "type": "string", "maxLength": 128 },
+        "subject": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "message": { "type": "string", "minLength": 10, "maxLength": 3000 },
+        "eventType": { "type": "string", "maxLength": 32 },
+        "eventDate": { "type": "string", "maxLength": 32 },
+        "timeZone": { "type": "string", "enum": ["Africa/Lagos"], "maxLength": 32 },
+        "guestCount": { "type": "integer" },
+        "locationText": { "type": "string", "maxLength": 160 },
+        "currency": { "type": "string", "enum": ["NGN"], "maxLength": 4 },
+        "budgetAmountMinor": { "type": "integer" },
+        "contactPreference": { "type": "string", "enum": ["email", "phone", "whatsapp"], "maxLength": 32 },
+        "status": { "type": "string", "enum": ["submitted", "viewed", "responded", "closed", "cancelled"], "maxLength": 32 },
+        "vendorResponse": { "type": "string", "maxLength": 3000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerUid", "customerName", "customerEmail", "listingId", "listingName", "organizationId", "vendorOwnerUid", "subject", "message", "timeZone", "currency", "contactPreference", "status", "createdAt", "updatedAt"]
+    },
+    "Quote": {
+      "title": "Quote",
+      "description": "Structured vendor quote responding to an enquiry.",
+      "type": "object",
+      "properties": {
+        "enquiryId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "listingId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "listingName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "organizationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "vendorOwnerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "currency": { "type": "string", "enum": ["NGN"], "maxLength": 4 },
+        "itemsSummary": { "type": "string", "minLength": 2, "maxLength": 2000 },
+        "inclusions": { "type": "string", "maxLength": 1500 },
+        "exclusions": { "type": "string", "maxLength": 1500 },
+        "subtotalMinor": { "type": "integer" },
+        "discountMinor": { "type": "integer" },
+        "totalMinor": { "type": "integer" },
+        "depositTerms": { "type": "string", "maxLength": 500 },
+        "validUntil": { "type": "string", "maxLength": 32 },
+        "notes": { "type": "string", "maxLength": 1500 },
+        "status": { "type": "string", "enum": ["draft", "sent", "accepted", "declined", "expired", "withdrawn"], "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["enquiryId", "listingId", "listingName", "organizationId", "vendorOwnerUid", "customerUid", "createdBy", "currency", "itemsSummary", "subtotalMinor", "discountMinor", "totalMinor", "status", "createdAt", "updatedAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app notification record.",
+      "type": "object",
+      "properties": {
+        "recipientUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "senderUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "enum": ["enquiry_received", "enquiry_responded", "quote_received", "quote_status_changed", "listing_moderation_update", "account_update"], "maxLength": 48 },
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "body": { "type": "string", "minLength": 2, "maxLength": 500 },
+        "entityType": { "type": "string", "enum": ["enquiry", "quote", "listing", "account"], "maxLength": 32 },
+        "entityId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recipientUid", "senderUid", "type", "title", "body", "entityType", "entityId", "isRead", "createdAt", "updatedAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "User-submitted report on a listing or conduct.",
+      "type": "object",
+      "properties": {
+        "reporterUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "targetType": { "type": "string", "enum": ["listing", "account"], "maxLength": 32 },
+        "targetId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "reasonCode": { "type": "string", "enum": ["misleading-information", "inaccurate-pricing", "duplicate-listing", "inappropriate-content", "suspected-scam", "other"], "maxLength": 64 },
+        "details": { "type": "string", "maxLength": 1500 },
+        "status": { "type": "string", "enum": ["open", "in_review", "resolved", "dismissed"], "maxLength": 32 },
+        "resolutionNotes": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reporterUid", "targetType", "targetId", "reasonCode", "status", "createdAt", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Append-only administrative and moderation audit trail.",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorEmail": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
+        "action": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "targetType": { "type": "string", "enum": ["listing", "vendorOrganization", "report", "user"], "maxLength": 32 },
+        "targetId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "reason": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "actorEmail", "action", "targetType", "targetId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Private user account profiles."
+    },
+    "/admins/{adminId}": {
+      "schema": "AdminRecord",
+      "description": "Platform administrator registry."
+    },
+    "/vendorOrganizations/{organizationId}": {
+      "schema": "VendorOrganization",
+      "description": "Vendor business profiles."
+    },
+    "/vendorMemberships/{membershipId}": {
+      "schema": "VendorMembership",
+      "description": "Vendor organization role memberships."
+    },
+    "/listings/{listingId}": {
+      "schema": "Listing",
+      "description": "Venue and service provider listings."
+    },
+    "/listingServices/{serviceId}": {
+      "schema": "ListingService",
+      "description": "Packages and services for listings."
+    },
+    "/listingMedia/{mediaId}": {
+      "schema": "ListingMedia",
+      "description": "Ordered gallery media for listings."
+    },
+    "/savedListings/{savedListingId}": {
+      "schema": "SavedListing",
+      "description": "Customer saved listings."
+    },
+    "/comparisons/{comparisonId}": {
+      "schema": "Comparison",
+      "description": "Customer venue comparison sets."
+    },
+    "/events/{eventId}": {
+      "schema": "EventWorkspace",
+      "description": "Customer event planning workspaces."
+    },
+    "/enquiries/{enquiryId}": {
+      "schema": "Enquiry",
+      "description": "Customer enquiries to vendors."
+    },
+    "/quotes/{quoteId}": {
+      "schema": "Quote",
+      "description": "Structured vendor quotes."
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "In-app notifications."
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "User moderation reports."
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Append-only admin audit logs."
+    }
+  }
+}

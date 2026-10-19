@@ -1,0 +1,6 @@
+{
+  "name": "EventLink",
+  "description": "Every Event. The Right People. Discover, evaluate, compare, and contact event venues and service professionals in Warri and Effurun.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
