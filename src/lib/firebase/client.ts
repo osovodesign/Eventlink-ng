@@ -1,23 +1,43 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
-import firebaseConfig from '../../../firebase-applet-config.json';
 import {
   recordFirestoreConnectionHealth,
   recordOperationalEvent,
 } from '../monitoring/release-monitor';
 
-const resolvedFirebaseConfig = {
+interface FirebaseAppletConfig {
+  projectId?: string;
+  appId?: string;
+  apiKey?: string;
+  authDomain?: string;
+  firestoreDatabaseId?: string;
+  storageBucket?: string;
+  messagingSenderId?: string;
+  measurementId?: string;
+  oAuthClientId?: string;
+  recaptchaSiteKey?: string;
+}
+
+const appletConfigModules = import.meta.glob<{ default: FirebaseAppletConfig }>(
+  '../../../firebase-applet-config.json',
+  { eager: true }
+);
+const firebaseConfig: FirebaseAppletConfig =
+  Object.values(appletConfigModules)[0]?.default ?? {};
+
+export const resolvedFirebaseConfig = {
   ...firebaseConfig,
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey || '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain || '',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId || '',
+  storageBucket:
+    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket || '',
   messagingSenderId:
-    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId,
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId || '',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId || '',
   firestoreDatabaseId:
-    import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId,
+    import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || '(default)',
 };
 
 const app = initializeApp(resolvedFirebaseConfig);

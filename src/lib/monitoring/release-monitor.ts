@@ -4,8 +4,13 @@
  * for the Administrator Governance & Monitoring console (/admin).
  */
 
-import firebaseConfig from '../../../firebase-applet-config.json';
 import { ENV } from '../config/env';
+
+const appletConfigModules = import.meta.glob<{
+  default: { firestoreDatabaseId?: string };
+}>('../../../firebase-applet-config.json', { eager: true });
+const fallbackDbId =
+  Object.values(appletConfigModules)[0]?.default?.firestoreDatabaseId || '(default)';
 
 export interface ReleaseManifest {
   version: string;
@@ -25,7 +30,7 @@ export const RELEASE_MANIFEST: ReleaseManifest = {
   launchMarket: 'Warri & Effurun, Delta State, Nigeria',
   currency: ENV.defaultCurrency,
   timezone: ENV.defaultTimezone,
-  firestoreDatabaseId: firebaseConfig.firestoreDatabaseId,
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || fallbackDbId,
   knownLimitations: [
     'Geographic scope is intentionally focused on Warri and Effurun, Delta State for V1 launch.',
     'Enquiries and structured NGN quotations record customer and vendor responses but do not process online card/bank payments or automatically lock calendar dates.',
