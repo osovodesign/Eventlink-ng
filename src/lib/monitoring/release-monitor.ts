@@ -10,7 +10,8 @@ const appletConfigModules = import.meta.glob<{
   default: { firestoreDatabaseId?: string };
 }>('../../../firebase-applet-config.json', { eager: true });
 const fallbackDbId =
-  Object.values(appletConfigModules)[0]?.default?.firestoreDatabaseId || '(default)';
+  Object.values(appletConfigModules)[0]?.default?.firestoreDatabaseId ||
+  'ai-studio-eventlink-f3ff492a-b0dd-475b-b57c-78cec063ac7f';
 
 export interface ReleaseManifest {
   version: string;

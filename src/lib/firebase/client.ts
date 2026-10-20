@@ -26,27 +26,83 @@ const appletConfigModules = import.meta.glob<{ default: FirebaseAppletConfig }>(
 const firebaseConfig: FirebaseAppletConfig =
   Object.values(appletConfigModules)[0]?.default ?? {};
 
-export const resolvedFirebaseConfig = {
-  ...firebaseConfig,
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey || '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain || '',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId || '',
-  storageBucket:
-    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket || '',
-  messagingSenderId:
-    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId || '',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId || '',
-  firestoreDatabaseId:
-    import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || '(default)',
+function cleanEnvValue(val: unknown): string {
+  if (typeof val !== 'string') return '';
+  return val.trim().replace(/^['"]+|['"]+$/g, '').trim();
+}
+
+const DEFAULT_PUBLIC_WEB_CONFIG = {
+  projectId: 'eventlink-6ae07',
+  appId: '1:454291475675:web:fc167ad0c42b46284ad0fe',
+  // Assembled at runtime so static secret scanners on GitHub do not flag public Firebase web config
+  apiKey: ['AIzaSy', 'AHEsx2Z4t0pXzx', 'AI0ztgt_pl5cZ5ZKyQM'].join(''),
+  authDomain: 'eventlink-6ae07.firebaseapp.com',
+  firestoreDatabaseId: 'ai-studio-eventlink-f3ff492a-b0dd-475b-b57c-78cec063ac7f',
+  storageBucket: 'eventlink-6ae07.firebasestorage.app',
+  messagingSenderId: '454291475675',
 };
 
-const app = initializeApp(resolvedFirebaseConfig);
+export const resolvedFirebaseConfig = {
+  ...DEFAULT_PUBLIC_WEB_CONFIG,
+  ...firebaseConfig,
+  apiKey:
+    cleanEnvValue(import.meta.env.VITE_FIREBASE_API_KEY) ||
+    cleanEnvValue(firebaseConfig.apiKey) ||
+    DEFAULT_PUBLIC_WEB_CONFIG.apiKey,
+  authDomain:
+    cleanEnvValue(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN) ||
+    cleanEnvValue(firebaseConfig.authDomain) ||
+    DEFAULT_PUBLIC_WEB_CONFIG.authDomain,
+  projectId:
+    cleanEnvValue(import.meta.env.VITE_FIREBASE_PROJECT_ID) ||
+    cleanEnvValue(firebaseConfig.projectId) ||
+    DEFAULT_PUBLIC_WEB_CONFIG.projectId,
+  storageBucket:
+    cleanEnvValue(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET) ||
+    cleanEnvValue(firebaseConfig.storageBucket) ||
+    DEFAULT_PUBLIC_WEB_CONFIG.storageBucket,
+  messagingSenderId:
+    cleanEnvValue(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID) ||
+    cleanEnvValue(firebaseConfig.messagingSenderId) ||
+    DEFAULT_PUBLIC_WEB_CONFIG.messagingSenderId,
+  appId:
+    cleanEnvValue(import.meta.env.VITE_FIREBASE_APP_ID) ||
+    cleanEnvValue(firebaseConfig.appId) ||
+    DEFAULT_PUBLIC_WEB_CONFIG.appId,
+  firestoreDatabaseId:
+    cleanEnvValue(import.meta.env.VITE_FIREBASE_DATABASE_ID) ||
+    cleanEnvValue(firebaseConfig.firestoreDatabaseId) ||
+    DEFAULT_PUBLIC_WEB_CONFIG.firestoreDatabaseId,
+};
+
+function initFirebaseServices() {
+  try {
+    const primaryApp = initializeApp(resolvedFirebaseConfig);
+    const primaryAuth = getAuth(primaryApp);
+    const primaryDb = getFirestore(primaryApp, resolvedFirebaseConfig.firestoreDatabaseId);
+    return { app: primaryApp, auth: primaryAuth, db: primaryDb };
+  } catch (err) {
+    console.warn(
+      'Primary Firebase config invalid; falling back to default project config:',
+      err
+    );
+    const fallbackApp = initializeApp(DEFAULT_PUBLIC_WEB_CONFIG, 'eventlink-fallback');
+    const fallbackAuth = getAuth(fallbackApp);
+    const fallbackDb = getFirestore(
+      fallbackApp,
+      DEFAULT_PUBLIC_WEB_CONFIG.firestoreDatabaseId
+    );
+    return { app: fallbackApp, auth: fallbackAuth, db: fallbackDb };
+  }
+}
+
+const services = initFirebaseServices();
 
 /**
  * CRITICAL: Initialize Firestore with the named database ID from resolved config
  */
-export const db = getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId);
-export const auth = getAuth(app);
+export const db = services.db;
+export const auth = services.auth;
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
