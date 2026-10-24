@@ -15,12 +15,14 @@ import {
   MessageSquare,
   FileText,
   CheckCheck,
+  Upload,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth/auth-context';
 import {
   IntendedRole,
   USER_PROFILE_CONSTRAINTS,
 } from '../../lib/permissions/access-control';
+import { processAndCompressAvatarImage } from '../../lib/media/image-upload';
 import { AppLink, useRouter } from '../../lib/router/router-context';
 import { useSavedCompare } from '../../features/saved-items/saved-compare-context';
 import {
@@ -64,6 +66,10 @@ export function AccountProfilePage() {
     userProfile?.displayName || ''
   );
   const [phone, setPhone] = useState(userProfile?.phone || '');
+  const [photoPath, setPhotoPath] = useState(
+    userProfile?.photoPath || vendorOrganization?.logoImageUrl || ''
+  );
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [preferredLocale, setPreferredLocale] = useState<
     'en-NG' | 'en-GB' | 'en-US'
   >(userProfile?.preferredLocale || 'en-NG');
@@ -111,6 +117,33 @@ export function AccountProfilePage() {
     return null;
   }
 
+  const handleAvatarFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSaveError(null);
+    setSaveSuccess(null);
+    setIsUploadingAvatar(true);
+    try {
+      const compressed = await processAndCompressAvatarImage(file);
+      setPhotoPath(compressed);
+      await updateUserProfile({
+        photoPath: compressed,
+      });
+      setSaveSuccess('Your profile picture has been updated.');
+    } catch (err) {
+      setSaveError(
+        err instanceof Error
+          ? err.message
+          : 'Could not upload profile picture.'
+      );
+    } finally {
+      setIsUploadingAvatar(false);
+      e.target.value = '';
+    }
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveSuccess(null);
@@ -139,6 +172,7 @@ export function AccountProfilePage() {
       await updateUserProfile({
         displayName: trimmedName,
         phone: phone.trim() ? phone.trim() : null,
+        photoPath: photoPath.trim() ? photoPath.trim() : null,
         preferredLocale,
         intendedRole,
       });
@@ -505,6 +539,54 @@ export function AccountProfilePage() {
             )}
 
             <form onSubmit={handleSaveProfile} className="space-y-5">
+              {/* Profile Picture Uploader */}
+              <div className="rounded-[12px] border border-[#D7DEE8] bg-[#F4F6F9]/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  {photoPath ? (
+                    <img
+                      src={photoPath}
+                      alt={userProfile.displayName}
+                      referrerPolicy="no-referrer"
+                      className="h-14 w-14 rounded-full object-cover border-2 border-[#4778D8] bg-white shrink-0"
+                    />
+                  ) : (
+                    <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#142B4A] text-white font-bold text-base shrink-0">
+                      {(userProfile.displayName || 'U')[0]?.toUpperCase()}
+                    </div>
+                  )}
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-semibold text-[#142B4A]">
+                      Profile picture
+                    </p>
+                    <p className="text-xs text-[#697586]">
+                      Displayed in the top-right navigation bar above your name.
+                    </p>
+                  </div>
+                </div>
+
+                <label
+                  htmlFor="account-avatar-upload"
+                  className="inline-flex min-h-[38px] items-center justify-center gap-2 rounded-[10px] border border-[#D7DEE8] bg-white px-3.5 py-2 text-xs font-semibold text-[#142B4A] hover:bg-[#F4F6F9] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Upload className="h-3.5 w-3.5 text-[#4778D8]" aria-hidden="true" />
+                  <span>
+                    {isUploadingAvatar
+                      ? 'Uploading…'
+                      : photoPath
+                      ? 'Change profile photo'
+                      : 'Upload profile photo'}
+                  </span>
+                  <input
+                    id="account-avatar-upload"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleAvatarFileChange}
+                    disabled={isUploadingAvatar}
+                    className="sr-only"
+                  />
+                </label>
+              </div>
+
               <div>
                 <label
                   htmlFor="account-email"

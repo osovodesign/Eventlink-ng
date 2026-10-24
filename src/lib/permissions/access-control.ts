@@ -31,10 +31,12 @@ export interface VendorOrganizationRecord {
   businessType: 'sole-proprietor' | 'registered-company' | 'partnership' | 'not-specified';
   description: string;
   ownerUid: string;
+  logoImageUrl?: string | null;
   publicEmail?: string | null;
   publicPhone?: string | null;
   whatsappNumber?: string | null;
   websiteUrl?: string | null;
+  verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected' | null;
   city: 'Warri' | 'Effurun';
   state: string;
   countryCode: 'NG';
@@ -110,6 +112,7 @@ export const USER_PROFILE_CONSTRAINTS = {
   DISPLAY_NAME_MIN: 1,
   DISPLAY_NAME_MAX: 100,
   PHONE_MAX: 32,
+  PHOTO_PATH_MAX: 300000,
   ID_PATTERN: /^[a-zA-Z0-9_\-]+$/,
 } as const;
 

@@ -49,11 +49,18 @@ export function validateImageFileMetadata(file: File): {
   return { valid: true };
 }
 
-export async function processAndCompressImageFile(file: File): Promise<string> {
+export async function processAndCompressImageFile(
+  file: File,
+  options?: { maxDimension?: number; maxDataUrlLength?: number }
+): Promise<string> {
   const metaCheck = validateImageFileMetadata(file);
   if (!metaCheck.valid) {
     throw new Error(metaCheck.error);
   }
+
+  const maxDimension = options?.maxDimension ?? 1200;
+  const maxAllowedLength =
+    options?.maxDataUrlLength ?? MAX_ENCODED_DATA_URL_LENGTH;
 
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -73,7 +80,6 @@ export async function processAndCompressImageFile(file: File): Promise<string> {
 
       img.onload = () => {
         try {
-          const maxDimension = 1200;
           let width = img.naturalWidth || img.width;
           let height = img.naturalHeight || img.height;
 
@@ -105,14 +111,14 @@ export async function processAndCompressImageFile(file: File): Promise<string> {
           let compressedUrl = canvas.toDataURL('image/jpeg', quality);
 
           while (
-            compressedUrl.length > MAX_ENCODED_DATA_URL_LENGTH &&
+            compressedUrl.length > maxAllowedLength &&
             quality > 0.4
           ) {
             quality -= 0.12;
             compressedUrl = canvas.toDataURL('image/jpeg', quality);
           }
 
-          if (compressedUrl.length > MAX_ENCODED_DATA_URL_LENGTH) {
+          if (compressedUrl.length > maxAllowedLength) {
             reject(
               new Error(
                 'Image remains too large after compression. Please choose a smaller photograph.'
@@ -137,3 +143,17 @@ export async function processAndCompressImageFile(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
+
+/**
+ * Compresses a vendor profile picture or user avatar to a crisp 400px max dimension
+ * JPEG data URL (<= 150 KB) suitable for header badges, vendor cards, and profile summaries.
+ */
+export async function processAndCompressAvatarImage(
+  file: File
+): Promise<string> {
+  return processAndCompressImageFile(file, {
+    maxDimension: 400,
+    maxDataUrlLength: 150000,
+  });
+}
+

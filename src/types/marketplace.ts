@@ -145,6 +145,7 @@ export interface ListingServiceRecord {
   description: string;
   categoryId: string;
   inclusions: string[];
+  imageUrl?: string | null;
   currency: 'NGN';
   pricingModel: 'fixed' | 'starting-at' | 'range' | 'custom-quote';
   amountMinor: number;
@@ -294,8 +295,27 @@ export interface AuditLogRecord {
   actorUid: string;
   actorEmail: string;
   action: string;
-  targetType: 'listing' | 'vendorOrganization' | 'report' | 'user';
+  targetType: 'listing' | 'vendorOrganization' | 'report' | 'user' | 'platformSettings';
   targetId: string;
   reason?: string | null;
   createdAt?: unknown;
 }
+
+export interface PlatformCategoryConfig {
+  id: string;
+  slug: string;
+  label: string;
+  listingType: ListingType;
+  commissionPercent: number;
+  isActive: boolean;
+}
+
+export interface PlatformSettingsRecord {
+  id: string;
+  defaultCommissionPercent: number;
+  featuredListingFeeMinor: number;
+  categories: PlatformCategoryConfig[];
+  updatedBy?: string | null;
+  updatedAt?: unknown;
+}
+

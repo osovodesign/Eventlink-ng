@@ -9,7 +9,7 @@
         "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
         "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
         "phone": { "type": "string", "maxLength": 32 },
-        "photoPath": { "type": "string", "maxLength": 500 },
+        "photoPath": { "type": "string", "maxLength": 300000 },
         "preferredLocale": { "type": "string", "enum": ["en-NG", "en-GB", "en-US"], "maxLength": 16 },
         "accountStatus": { "type": "string", "enum": ["active", "suspended", "deletion_pending", "deleted"], "maxLength": 32 },
         "onboardingStatus": { "type": "string", "enum": ["incomplete", "in_progress", "complete"], "maxLength": 32 },
@@ -41,10 +41,12 @@
         "businessType": { "type": "string", "enum": ["sole-proprietor", "registered-company", "partnership", "not-specified"], "maxLength": 32 },
         "description": { "type": "string", "minLength": 10, "maxLength": 2000 },
         "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "logoImageUrl": { "type": "string", "maxLength": 300000 },
         "publicEmail": { "type": "string", "maxLength": 254 },
         "publicPhone": { "type": "string", "maxLength": 32 },
         "whatsappNumber": { "type": "string", "maxLength": 32 },
         "websiteUrl": { "type": "string", "maxLength": 300 },
+        "verificationStatus": { "type": "string", "enum": ["unverified", "pending", "verified", "rejected"], "maxLength": 32 },
         "city": { "type": "string", "enum": ["Warri", "Effurun"], "maxLength": 64 },
         "state": { "type": "string", "maxLength": 64 },
         "countryCode": { "type": "string", "enum": ["NG"], "maxLength": 4 },
@@ -124,6 +126,7 @@
         "description": { "type": "string", "minLength": 5, "maxLength": 1500 },
         "categoryId": { "type": "string", "minLength": 2, "maxLength": 64 },
         "inclusions": { "type": "array" },
+        "imageUrl": { "type": "string", "maxLength": 300000 },
         "currency": { "type": "string", "enum": ["NGN"], "maxLength": 4 },
         "pricingModel": { "type": "string", "enum": ["fixed", "starting-at", "range", "custom-quote"], "maxLength": 32 },
         "amountMinor": { "type": "integer" },
@@ -309,9 +312,27 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["actorUid", "actorEmail", "action", "targetType", "targetId", "createdAt"]
+    },
+    "PlatformSettings": {
+      "title": "PlatformSettings",
+      "description": "Global marketplace operational settings, category taxonomy, and fee structures.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "defaultCommissionPercent": { "type": "integer" },
+        "featuredListingFeeMinor": { "type": "integer" },
+        "categoriesJson": { "type": "string", "maxLength": 50000 },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "defaultCommissionPercent", "updatedAt"]
     }
   },
   "firestore": {
+    "/platformSettings/{settingId}": {
+      "schema": "PlatformSettings",
+      "description": "Global marketplace configuration, category taxonomy, and fee settings."
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "Private user account profiles."

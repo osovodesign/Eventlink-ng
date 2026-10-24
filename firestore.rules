@@ -18,7 +18,7 @@ service cloud.firestore {
     }
 
     function isVerifiedUser() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn();
     }
 
     function isOwner(userId) {
@@ -67,7 +67,7 @@ service cloud.firestore {
         data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
         data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
         (!('phone' in data) || data.phone == null || (data.phone is string && data.phone.size() <= 32)) &&
-        (!('photoPath' in data) || data.photoPath == null || (data.photoPath is string && data.photoPath.size() <= 500)) &&
+        (!('photoPath' in data) || data.photoPath == null || (data.photoPath is string && data.photoPath.size() <= 300000)) &&
         data.preferredLocale in ['en-NG', 'en-GB', 'en-US'] &&
         data.accountStatus in ['active', 'suspended', 'deletion_pending', 'deleted'] &&
         data.onboardingStatus in ['incomplete', 'in_progress', 'complete'] &&
@@ -92,18 +92,20 @@ service cloud.firestore {
         ]) &&
         data.keys().hasOnly([
           'name', 'slug', 'businessType', 'description', 'ownerUid',
-          'publicEmail', 'publicPhone', 'whatsappNumber', 'websiteUrl',
-          'city', 'state', 'countryCode', 'status', 'createdAt', 'updatedAt'
+          'logoImageUrl', 'publicEmail', 'publicPhone', 'whatsappNumber', 'websiteUrl',
+          'verificationStatus', 'city', 'state', 'countryCode', 'status', 'createdAt', 'updatedAt'
         ]) &&
         data.name is string && data.name.size() >= 2 && data.name.size() <= 120 &&
         isValidSlug(data.slug) &&
         data.businessType in ['sole-proprietor', 'registered-company', 'partnership', 'not-specified'] &&
         data.description is string && data.description.size() >= 10 && data.description.size() <= 2000 &&
         isValidId(data.ownerUid) &&
+        (!('logoImageUrl' in data) || data.logoImageUrl == null || (data.logoImageUrl is string && data.logoImageUrl.size() <= 300000)) &&
         (!('publicEmail' in data) || data.publicEmail == null || (data.publicEmail is string && data.publicEmail.size() <= 254)) &&
         (!('publicPhone' in data) || data.publicPhone == null || (data.publicPhone is string && data.publicPhone.size() <= 32)) &&
         (!('whatsappNumber' in data) || data.whatsappNumber == null || (data.whatsappNumber is string && data.whatsappNumber.size() <= 32)) &&
         (!('websiteUrl' in data) || data.websiteUrl == null || (data.websiteUrl is string && data.websiteUrl.size() <= 300)) &&
+        (!('verificationStatus' in data) || data.verificationStatus == null || data.verificationStatus in ['unverified', 'pending', 'verified', 'rejected']) &&
         data.city in ['Warri', 'Effurun'] &&
         data.state is string && data.state.size() >= 2 && data.state.size() <= 64 &&
         data.countryCode == 'NG' &&
@@ -195,7 +197,7 @@ service cloud.firestore {
         ]) &&
         data.keys().hasOnly([
           'listingId', 'organizationId', 'ownerUid', 'name', 'description',
-          'categoryId', 'inclusions', 'currency', 'pricingModel', 'amountMinor',
+          'categoryId', 'inclusions', 'imageUrl', 'currency', 'pricingModel', 'amountMinor',
           'status', 'sortOrder', 'createdAt', 'updatedAt'
         ]) &&
         isValidId(data.listingId) &&
@@ -206,6 +208,7 @@ service cloud.firestore {
         data.categoryId is string && data.categoryId.size() >= 2 && data.categoryId.size() <= 64 &&
         data.inclusions is list && data.inclusions.size() <= 15 &&
         (data.inclusions.size() == 0 || (data.inclusions[0] is string && data.inclusions[0].size() <= 120)) &&
+        (!('imageUrl' in data) || data.imageUrl == null || (data.imageUrl is string && data.imageUrl.size() <= 300000)) &&
         data.currency == 'NGN' &&
         data.pricingModel in ['fixed', 'starting-at', 'range', 'custom-quote'] &&
         data.amountMinor is int && data.amountMinor >= 0 &&
@@ -420,9 +423,31 @@ service cloud.firestore {
         data.createdAt is timestamp;
     }
 
+    function isValidPlatformSettings(data) {
+      return data.keys().hasAll(['id', 'defaultCommissionPercent', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'defaultCommissionPercent', 'featuredListingFeeMinor', 'categoriesJson', 'updatedBy', 'updatedAt']) &&
+        isValidId(data.id) &&
+        data.defaultCommissionPercent is int && data.defaultCommissionPercent >= 0 && data.defaultCommissionPercent <= 100 &&
+        (!('featuredListingFeeMinor' in data) || data.featuredListingFeeMinor == null || (data.featuredListingFeeMinor is int && data.featuredListingFeeMinor >= 0)) &&
+        (!('categoriesJson' in data) || data.categoriesJson == null || (data.categoriesJson is string && data.categoriesJson.size() <= 50000)) &&
+        (!('updatedBy' in data) || data.updatedBy == null || (data.updatedBy is string && data.updatedBy.size() <= 128)) &&
+        data.updatedAt is timestamp;
+    }
+
     // =========================================================================
     // 4. COLLECTION MATCH BLOCKS
     // =========================================================================
+
+    // /platformSettings/{settingId} — Global Marketplace Taxonomy & Fee Rules
+    match /platformSettings/{settingId} {
+      allow get, list: if true;
+      allow create, update: if isAdmin() &&
+        isValidId(settingId) &&
+        isValidPlatformSettings(incoming()) &&
+        incoming().id == settingId &&
+        incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
 
     // /test/connection — Health probe required on initial boot
     match /test/connection {
@@ -484,6 +509,7 @@ service cloud.firestore {
     // /vendorOrganizations/{organizationId} — Vendor Business Profile
     match /vendorOrganizations/{organizationId} {
       allow get: if isValidId(organizationId) && (
+        resource == null ||
         existing().status == 'active' ||
         (isSignedIn() && existing().ownerUid == request.auth.uid) ||
         isAdmin()
@@ -513,7 +539,7 @@ service cloud.firestore {
             existing().status != 'suspended' &&
             incoming().status in ['active', 'archived'] &&
             incoming().diff(existing()).affectedKeys().hasOnly([
-              'name', 'slug', 'businessType', 'description',
+              'name', 'slug', 'businessType', 'description', 'logoImageUrl',
               'publicEmail', 'publicPhone', 'whatsappNumber',
               'websiteUrl', 'city', 'state', 'status', 'updatedAt'
             ])
@@ -563,6 +589,7 @@ service cloud.firestore {
     // /listings/{listingId} — Venue and Service Provider Listings
     match /listings/{listingId} {
       allow get: if isValidId(listingId) && (
+        resource == null ||
         (existing().publicationStatus == 'published' && existing().moderationStatus == 'approved') ||
         (isSignedIn() && existing().ownerUid == request.auth.uid) ||
         isAdmin()
@@ -622,6 +649,7 @@ service cloud.firestore {
     // /listingServices/{serviceId} — Listing Packages and Services
     match /listingServices/{serviceId} {
       allow get: if isValidId(serviceId) && (
+        resource == null ||
         existing().status == 'published' ||
         (isSignedIn() && existing().ownerUid == request.auth.uid) ||
         isAdmin()
@@ -651,7 +679,7 @@ service cloud.firestore {
           (
             existing().ownerUid == request.auth.uid &&
             incoming().diff(existing()).affectedKeys().hasOnly([
-              'name', 'description', 'categoryId', 'inclusions',
+              'name', 'description', 'categoryId', 'inclusions', 'imageUrl',
               'pricingModel', 'amountMinor', 'status', 'sortOrder', 'updatedAt'
             ])
           )
@@ -665,6 +693,7 @@ service cloud.firestore {
     // /listingMedia/{mediaId} — Listing Media & Portfolio
     match /listingMedia/{mediaId} {
       allow get: if isValidId(mediaId) && (
+        resource == null ||
         existing().publicationStatus == 'published' ||
         (isSignedIn() && existing().ownerUid == request.auth.uid) ||
         isAdmin()
@@ -708,8 +737,10 @@ service cloud.firestore {
 
     // /savedListings/{savedListingId} — Customer Saved Listings
     match /savedListings/{savedListingId} {
-      allow get: if isValidId(savedListingId) && isSignedIn() && existing().uid == request.auth.uid;
-      allow list: if isSignedIn() && existing().uid == request.auth.uid;
+      allow get: if isValidId(savedListingId) && isSignedIn() && (
+        resource == null || existing().uid == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
 
       allow create: if isVerifiedUser() &&
         isValidId(savedListingId) &&
@@ -719,13 +750,15 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/listings/$(incoming().listingId));
 
       allow update: if false;
-      allow delete: if isVerifiedUser() && isValidId(savedListingId) && existing().uid == request.auth.uid;
+      allow delete: if isVerifiedUser() && isValidId(savedListingId) && (existing().uid == request.auth.uid || isAdmin());
     }
 
     // /comparisons/{comparisonId} — Customer Venue Comparison Sets
     match /comparisons/{comparisonId} {
-      allow get: if isValidId(comparisonId) && isSignedIn() && existing().uid == request.auth.uid;
-      allow list: if isSignedIn() && existing().uid == request.auth.uid;
+      allow get: if isValidId(comparisonId) && isSignedIn() && (
+        resource == null || existing().uid == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || isAdmin());
 
       allow create: if isVerifiedUser() &&
         isValidId(comparisonId) &&
@@ -743,13 +776,15 @@ service cloud.firestore {
         incoming().updatedAt == request.time &&
         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'listingIds', 'updatedAt']);
 
-      allow delete: if isVerifiedUser() && isValidId(comparisonId) && existing().uid == request.auth.uid;
+      allow delete: if isVerifiedUser() && isValidId(comparisonId) && (existing().uid == request.auth.uid || isAdmin());
     }
 
     // /events/{eventId} — Customer Event Planning Workspace
     match /events/{eventId} {
-      allow get: if isValidId(eventId) && isSignedIn() && existing().ownerUid == request.auth.uid;
-      allow list: if isSignedIn() && existing().ownerUid == request.auth.uid;
+      allow get: if isValidId(eventId) && isSignedIn() && (
+        resource == null || existing().ownerUid == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin());
 
       allow create: if isVerifiedUser() &&
         isValidId(eventId) &&
@@ -776,6 +811,7 @@ service cloud.firestore {
     // /enquiries/{enquiryId} — Customer-to-Vendor Enquiries
     match /enquiries/{enquiryId} {
       allow get: if isValidId(enquiryId) && isSignedIn() && (
+        resource == null ||
         existing().customerUid == request.auth.uid ||
         existing().vendorOwnerUid == request.auth.uid ||
         isAdmin()
@@ -830,6 +866,7 @@ service cloud.firestore {
     // /quotes/{quoteId} — Structured Vendor Quotes
     match /quotes/{quoteId} {
       allow get: if isValidId(quoteId) && isSignedIn() && (
+        resource == null ||
         existing().customerUid == request.auth.uid ||
         existing().vendorOwnerUid == request.auth.uid ||
         isAdmin()
@@ -889,8 +926,10 @@ service cloud.firestore {
 
     // /notifications/{notificationId} — In-App Notification Inbox
     match /notifications/{notificationId} {
-      allow get: if isValidId(notificationId) && isSignedIn() && existing().recipientUid == request.auth.uid;
-      allow list: if isSignedIn() && existing().recipientUid == request.auth.uid;
+      allow get: if isValidId(notificationId) && isSignedIn() && (
+        resource == null || existing().recipientUid == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (existing().recipientUid == request.auth.uid || isAdmin());
 
       allow create: if isVerifiedUser() &&
         isValidId(notificationId) &&
@@ -917,7 +956,7 @@ service cloud.firestore {
     // /reports/{reportId} — User Moderation Reports
     match /reports/{reportId} {
       allow get: if isValidId(reportId) && isSignedIn() && (
-        existing().reporterUid == request.auth.uid || isAdmin()
+        resource == null || existing().reporterUid == request.auth.uid || isAdmin()
       );
       allow list: if isSignedIn() && (
         existing().reporterUid == request.auth.uid || isAdmin()

@@ -22,13 +22,31 @@ export interface SiteHeaderProps {
  */
 export function SiteHeader({ variant = 'public' }: SiteHeaderProps) {
   const { pathname, search } = useRouter();
-  const { userProfile, isAdmin } = useAuth();
+  const { firebaseUser, userProfile, vendorOrganization, isAdmin } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
+
+  const activeAvatarUrl =
+    vendorOrganization?.logoImageUrl ||
+    userProfile?.photoPath ||
+    firebaseUser?.photoURL ||
+    null;
+
+  useEffect(() => {
+    setAvatarLoadError(false);
+  }, [activeAvatarUrl]);
 
   // Close mobile navigation drawer automatically on route change
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname, search]);
+
+  const userInitials = (userProfile?.displayName || 'U')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('');
 
   const navLinks = [
     { href: '/', label: 'Discover', active: pathname === '/' },
@@ -106,9 +124,28 @@ export function SiteHeader({ variant = 'public' }: SiteHeaderProps) {
           {userProfile ? (
             <AppLink
               href="/account"
-              className="inline-flex min-h-[40px] items-center justify-center rounded-[10px] bg-[#142B4A] px-4 py-2 text-sm font-medium text-white hover:bg-[#1c3a63] transition-colors whitespace-nowrap shrink-0"
+              aria-label={`Account settings for ${userProfile.displayName}`}
+              className="group inline-flex flex-col items-center justify-center gap-0.5 rounded-[10px] px-2.5 py-1 hover:bg-[#F4F6F9] transition-colors shrink-0"
             >
-              {userProfile.displayName}
+              {activeAvatarUrl && !avatarLoadError ? (
+                <img
+                  src={activeAvatarUrl}
+                  alt={userProfile.displayName}
+                  referrerPolicy="no-referrer"
+                  onError={() => setAvatarLoadError(true)}
+                  className="h-8 w-8 rounded-full object-cover border border-[#D7DEE8] group-hover:border-[#4778D8] transition-colors shrink-0"
+                />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#142B4A] text-[11px] font-bold text-white border border-[#142B4A] group-hover:bg-[#1c3a63] transition-colors shrink-0"
+                >
+                  {userInitials || 'U'}
+                </span>
+              )}
+              <span className="text-[11px] font-medium leading-tight text-[#142B4A] group-hover:text-[#4778D8] truncate max-w-[96px] whitespace-nowrap">
+                {userProfile.displayName}
+              </span>
             </AppLink>
           ) : (
             <AppLink
@@ -155,9 +192,30 @@ export function SiteHeader({ variant = 'public' }: SiteHeaderProps) {
             {userProfile ? (
               <AppLink
                 href="/account"
-                className="block rounded-[10px] px-3.5 py-2.5 text-base font-medium text-[#142B4A] hover:bg-[#F4F6F9]"
+                className="flex items-center gap-3 rounded-[10px] px-3.5 py-2.5 text-base font-medium text-[#142B4A] hover:bg-[#F4F6F9]"
               >
-                Account settings ({userProfile.displayName})
+                {activeAvatarUrl && !avatarLoadError ? (
+                  <img
+                    src={activeAvatarUrl}
+                    alt={userProfile.displayName}
+                    referrerPolicy="no-referrer"
+                    onError={() => setAvatarLoadError(true)}
+                    className="h-9 w-9 rounded-full object-cover border border-[#D7DEE8] shrink-0"
+                  />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#142B4A] text-xs font-bold text-white shrink-0"
+                  >
+                    {userInitials || 'U'}
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[#142B4A] truncate">
+                    {userProfile.displayName}
+                  </p>
+                  <p className="text-xs text-[#697586]">Account settings</p>
+                </div>
               </AppLink>
             ) : (
               <>

@@ -45,7 +45,10 @@ import {
   formatMinorCurrency,
 } from '../../lib/config/env';
 import { buildDisplayPriceText } from '../../lib/validation/marketplace-schemas';
-import { processAndCompressImageFile } from '../../lib/media/image-upload';
+import {
+  processAndCompressAvatarImage,
+  processAndCompressImageFile,
+} from '../../lib/media/image-upload';
 import {
   VendorListingInput,
   addVendorListingMedia,
@@ -110,6 +113,8 @@ export function VendorWorkspacePage() {
     useState<VendorOrganizationRecord['businessType']>('registered-company');
   const [orgCity, setOrgCity] = useState<LaunchCity>('Warri');
   const [orgDescription, setOrgDescription] = useState('');
+  const [orgLogoUrl, setOrgLogoUrl] = useState('');
+  const [isUploadingOrgLogo, setIsUploadingOrgLogo] = useState(false);
   const [orgEmail, setOrgEmail] = useState('');
   const [orgPhone, setOrgPhone] = useState('');
   const [orgWhatsapp, setOrgWhatsapp] = useState('');
@@ -145,6 +150,7 @@ export function VendorWorkspacePage() {
   const [decorationPolicy, setDecorationPolicy] = useState('');
   const [alcoholPolicy, setAlcoholPolicy] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState('');
+  const [isUploadingCoverFile, setIsUploadingCoverFile] = useState(false);
   const [contactVisibility, setContactVisibility] =
     useState<ContactVisibility>('after-enquiry');
   const [acceptsEnquiries, setAcceptsEnquiries] = useState(true);
@@ -172,6 +178,8 @@ export function VendorWorkspacePage() {
     useState<ListingServiceRecord['pricingModel']>('fixed');
   const [pkgPriceNaira, setPkgPriceNaira] = useState('');
   const [pkgInclusionsText, setPkgInclusionsText] = useState('');
+  const [pkgImageUrl, setPkgImageUrl] = useState('');
+  const [isUploadingPkgImage, setIsUploadingPkgImage] = useState(false);
   const [pkgError, setPkgError] = useState<string | null>(null);
   const [isSavingPkg, setIsSavingPkg] = useState(false);
 
@@ -188,11 +196,15 @@ export function VendorWorkspacePage() {
       setOrgBusinessType(vendorOrganization.businessType);
       setOrgCity((vendorOrganization.city as LaunchCity) || 'Warri');
       setOrgDescription(vendorOrganization.description);
+      setOrgLogoUrl(
+        vendorOrganization.logoImageUrl || userProfile?.photoPath || ''
+      );
       setOrgEmail(vendorOrganization.publicEmail || '');
       setOrgPhone(vendorOrganization.publicPhone || '');
       setOrgWhatsapp(vendorOrganization.whatsappNumber || '');
       setOrgWebsite(vendorOrganization.websiteUrl || '');
     } else if (userProfile) {
+      setOrgLogoUrl(userProfile.photoPath || '');
       setOrgEmail(userProfile.email || '');
       setOrgPhone(userProfile.phone || '');
     }
@@ -335,12 +347,111 @@ export function VendorWorkspacePage() {
     void loadListingMediaAndServices(item.id);
   };
 
+  // Upload Vendor Profile Picture / Business Logo
+  const handleOrgLogoFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setOrgFormError(null);
+    setIsUploadingOrgLogo(true);
+    try {
+      const compressedAvatar = await processAndCompressAvatarImage(file);
+      setOrgLogoUrl(compressedAvatar);
+      showToast({
+        title: 'Profile picture ready',
+        description: 'Click Save to apply your vendor profile photo.',
+        tone: 'info',
+      });
+    } catch (err) {
+      setOrgFormError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to process vendor profile picture.'
+      );
+    } finally {
+      setIsUploadingOrgLogo(false);
+      e.target.value = '';
+    }
+  };
+
+  // Upload Cover Photo Directly Inside Listing Form (Before or After Saving Draft)
+  const handleDirectCoverFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setListingFormError(null);
+    setIsUploadingCoverFile(true);
+    try {
+      const compressedCover = await processAndCompressImageFile(file);
+      setCoverImageUrl(compressedCover);
+      showToast({
+        title: 'Cover photo uploaded',
+        description:
+          'Save your listing draft or submit for review to publish this cover image.',
+        tone: 'success',
+      });
+    } catch (err) {
+      setListingFormError(
+        err instanceof Error
+          ? err.message
+          : 'Could not process cover photo file.'
+      );
+    } finally {
+      setIsUploadingCoverFile(false);
+      e.target.value = '';
+    }
+  };
+
+  // Upload Product / Service Package Photo
+  const handlePackageImageFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setPkgError(null);
+    setIsUploadingPkgImage(true);
+    try {
+      const compressedPkgImg = await processAndCompressImageFile(file, {
+        maxDimension: 900,
+        maxDataUrlLength: 240000,
+      });
+      setPkgImageUrl(compressedPkgImg);
+      showToast({
+        title: 'Package photo attached',
+        description: 'Fill out the package details and click Add Package.',
+        tone: 'info',
+      });
+    } catch (err) {
+      setPkgError(
+        err instanceof Error
+          ? err.message
+          : 'Could not process package photo file.'
+      );
+    } finally {
+      setIsUploadingPkgImage(false);
+      e.target.value = '';
+    }
+  };
+
   // Save or Update Business Profile
   const handleSaveBusinessProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!firebaseUser) return;
 
     setOrgFormError(null);
+    const trimmedLogo = orgLogoUrl.trim();
+    if (!trimmedLogo) {
+      setOrgFormError(
+        'Please upload a vendor profile picture or business logo to establish credibility before continuing.'
+      );
+      return;
+    }
+
     setIsSavingOrg(true);
 
     try {
@@ -350,15 +461,19 @@ export function VendorWorkspacePage() {
           businessType: orgBusinessType,
           description: orgDescription,
           city: orgCity,
+          logoImageUrl: trimmedLogo,
           publicEmail: orgEmail || null,
           publicPhone: orgPhone || null,
           whatsappNumber: orgWhatsapp || null,
           websiteUrl: orgWebsite || null,
         });
+        await updateUserProfile({
+          photoPath: trimmedLogo,
+        });
         await refreshVendorContext();
         showToast({
           title: 'Business profile updated',
-          description: `${orgName} details saved.`,
+          description: `${orgName} details and profile picture saved.`,
           tone: 'success',
         });
       } else {
@@ -367,12 +482,14 @@ export function VendorWorkspacePage() {
           businessType: orgBusinessType,
           description: orgDescription,
           city: orgCity,
+          logoImageUrl: trimmedLogo,
           publicEmail: orgEmail || null,
           publicPhone: orgPhone || null,
           whatsappNumber: orgWhatsapp || null,
           websiteUrl: orgWebsite || null,
         });
         await updateUserProfile({
+          photoPath: trimmedLogo,
           onboardingStatus: 'complete',
           intendedRole: 'both',
         });
@@ -500,14 +617,33 @@ export function VendorWorkspacePage() {
           vendorOrganization.id,
           payload
         );
+        // If vendor uploaded a cover photo during initial creation, add it to the listing gallery automatically
+        if (payload.coverImageUrl) {
+          try {
+            await addVendorListingMedia(
+              firebaseUser.uid,
+              vendorOrganization.id,
+              created.id,
+              {
+                imageUrl: payload.coverImageUrl,
+                altText: `${created.name} cover photograph`,
+                caption: 'Primary cover photograph',
+                sortOrder: 1,
+              }
+            );
+          } catch {
+            // Non-fatal if initial gallery sync fails
+          }
+        }
         setEditingListing(created);
+        void loadListingMediaAndServices(created.id);
         showToast({
           title:
             targetAction === 'submit_review'
               ? 'Listing created & submitted for review'
               : 'Draft listing created',
           description:
-            'You can now upload photos and add service packages below.',
+            'You can now upload additional gallery photos and add service packages with product photos below.',
           tone: 'success',
         });
       }
@@ -687,6 +823,7 @@ export function VendorWorkspacePage() {
             .split(',')
             .map((s) => s.trim())
             .filter(Boolean),
+          imageUrl: pkgImageUrl.trim() || null,
           pricingModel: pkgPricingModel,
           amountMinor,
           sortOrder: listingServices.length + 1,
@@ -696,6 +833,7 @@ export function VendorWorkspacePage() {
       setPkgDescription('');
       setPkgPriceNaira('');
       setPkgInclusionsText('');
+      setPkgImageUrl('');
       await loadListingMediaAndServices(editingListing.id);
       showToast({
         title: 'Package added',
@@ -797,6 +935,63 @@ export function VendorWorkspacePage() {
                 {orgFormError}
               </InlineAlert>
             )}
+
+            {/* Credibility Profile Picture / Business Logo Upload (Required) */}
+            <div className="rounded-[12px] border border-[#D7DEE8] bg-[#F4F6F9]/70 p-4 sm:p-5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  {orgLogoUrl ? (
+                    <img
+                      src={orgLogoUrl}
+                      alt={orgName || 'Vendor profile preview'}
+                      referrerPolicy="no-referrer"
+                      className="h-16 w-16 rounded-full object-cover border-2 border-[#4778D8] bg-white shrink-0"
+                    />
+                  ) : (
+                    <div className="inline-flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-[#98A2B3] bg-white text-[#697586] shrink-0">
+                      <Building2 className="h-6 w-6" aria-hidden="true" />
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-bold text-[#142B4A]">
+                        Profile Picture or Business Logo
+                      </span>
+                      <span className="text-xs font-semibold text-[#B42318]">
+                        (Required for credibility)
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#475467]">
+                      Upload a clear portrait photo or official brand logo (JPG, PNG, or WebP up to 5 MB). Displayed in the top navigation bar and on your public listings.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <label
+                    htmlFor="onboard-org-logo-input"
+                    className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-[10px] bg-[#142B4A] px-4 py-2 text-xs font-semibold text-white hover:bg-[#1c3a63] transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <Upload className="h-4 w-4" aria-hidden="true" />
+                    <span>
+                      {isUploadingOrgLogo
+                        ? 'Processing…'
+                        : orgLogoUrl
+                        ? 'Change Photo'
+                        : 'Upload Profile Photo'}
+                    </span>
+                    <input
+                      id="onboard-org-logo-input"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleOrgLogoFileChange}
+                      disabled={isUploadingOrgLogo}
+                      className="sr-only"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
 
             <FormField
               id="onboard-org-name"
@@ -1628,8 +1823,72 @@ export function VendorWorkspacePage() {
               </div>
             )}
 
-            {/* 5. Amenities & Enquiry Settings */}
-            <div className="border-t border-[#E9EDF3] pt-5 space-y-4">
+            {/* 5. Amenities, Direct Cover Photo & Enquiry Settings */}
+            <div className="border-t border-[#E9EDF3] pt-5 space-y-5">
+              {/* Direct Cover Photo Upload (Works during initial creation and editing) */}
+              <div className="rounded-[12px] border border-[#D7DEE8] bg-[#F4F6F9]/60 p-4 sm:p-5 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-[#142B4A]">
+                      Primary Listing Cover Photo
+                    </h3>
+                    <p className="text-xs text-[#475467]">
+                      Upload your main showcase photo directly from your device (JPG, PNG, or WebP up to 5 MB). Additional gallery photos and product package images can be added below.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <label
+                      htmlFor="editor-direct-cover-file"
+                      className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-[10px] bg-[#142B4A] px-4 py-2 text-xs font-semibold text-white hover:bg-[#1c3a63] transition-colors cursor-pointer whitespace-nowrap"
+                    >
+                      <Upload className="h-4 w-4" aria-hidden="true" />
+                      <span>
+                        {isUploadingCoverFile
+                          ? 'Uploading…'
+                          : coverImageUrl
+                          ? 'Replace Cover Photo'
+                          : 'Upload Cover Photo'}
+                      </span>
+                      <input
+                        id="editor-direct-cover-file"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleDirectCoverFileChange}
+                        disabled={isUploadingCoverFile}
+                        className="sr-only"
+                      />
+                    </label>
+                    {coverImageUrl && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCoverImageUrl('')}
+                        className="text-[#B42318] hover:bg-[#FEF3F2]"
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {coverImageUrl && (
+                  <div className="flex items-center gap-3 pt-1">
+                    <img
+                      src={coverImageUrl}
+                      alt={name || 'Listing cover preview'}
+                      referrerPolicy="no-referrer"
+                      className="h-20 w-32 rounded-[8px] object-cover border border-[#D7DEE8] bg-white shrink-0"
+                    />
+                    <div className="text-xs text-[#146C43] font-medium flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      <span>Primary cover photo ready to save with listing</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <FormField
                 id="editor-amenities"
                 label={
@@ -1989,6 +2248,67 @@ export function VendorWorkspacePage() {
                     />
                   </FormField>
 
+                  {/* Product / Package Image Upload */}
+                  <div className="rounded-[10px] border border-[#D7DEE8] bg-white p-3 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <span className="block text-xs font-semibold text-[#142B4A]">
+                          Product or Package Photo
+                        </span>
+                        <span className="block text-[11px] text-[#697586]">
+                          Showcase this specific product tier or package with a photo (JPG/PNG/WebP).
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <label
+                          htmlFor="pkg-photo-file-input"
+                          className="inline-flex min-h-[34px] items-center justify-center gap-1.5 rounded-[8px] border border-[#D7DEE8] bg-[#F4F6F9] px-3 py-1.5 text-xs font-semibold text-[#142B4A] hover:bg-[#E9EDF3] transition-colors cursor-pointer whitespace-nowrap"
+                        >
+                          <Upload className="h-3.5 w-3.5 text-[#4778D8]" aria-hidden="true" />
+                          <span>
+                            {isUploadingPkgImage
+                              ? 'Uploading…'
+                              : pkgImageUrl
+                              ? 'Change Photo'
+                              : 'Upload Product Photo'}
+                          </span>
+                          <input
+                            id="pkg-photo-file-input"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={handlePackageImageFileChange}
+                            disabled={isUploadingPkgImage}
+                            className="sr-only"
+                          />
+                        </label>
+                        {pkgImageUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setPkgImageUrl('')}
+                            className="text-xs font-medium text-[#B42318] hover:underline cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {pkgImageUrl && (
+                      <div className="flex items-center gap-3 pt-1">
+                        <img
+                          src={pkgImageUrl}
+                          alt={pkgName || 'Package preview'}
+                          referrerPolicy="no-referrer"
+                          className="h-14 w-20 rounded-[6px] object-cover border border-[#D7DEE8] shrink-0"
+                        />
+                        <span className="text-[11px] font-medium text-[#146C43]">
+                          Product photo attached to this package
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="pt-1 flex justify-end">
                     <Button
                       type="submit"
@@ -2009,19 +2329,29 @@ export function VendorWorkspacePage() {
                         key={srv.id}
                         className="flex items-start justify-between gap-3 rounded-[10px] border border-[#D7DEE8] bg-white p-3.5"
                       >
-                        <div className="space-y-1">
-                          <p className="text-sm font-bold text-[#142B4A]">
-                            {srv.name}
-                          </p>
-                          <p className="text-xs font-semibold text-[#4778D8] tabular-nums">
-                            {srv.pricingModel === 'custom-quote' ||
-                            srv.amountMinor <= 0
-                              ? 'Custom quote'
-                              : formatMinorCurrency(srv.amountMinor)}
-                          </p>
-                          <p className="text-xs text-[#344054]">
-                            {srv.description}
-                          </p>
+                        <div className="flex items-start gap-3 min-w-0">
+                          {srv.imageUrl && (
+                            <img
+                              src={srv.imageUrl}
+                              alt={srv.name}
+                              referrerPolicy="no-referrer"
+                              className="h-16 w-20 rounded-[8px] object-cover border border-[#E9EDF3] shrink-0"
+                            />
+                          )}
+                          <div className="space-y-1 min-w-0">
+                            <p className="text-sm font-bold text-[#142B4A]">
+                              {srv.name}
+                            </p>
+                            <p className="text-xs font-semibold text-[#4778D8] tabular-nums">
+                              {srv.pricingModel === 'custom-quote' ||
+                              srv.amountMinor <= 0
+                                ? 'Custom quote'
+                                : formatMinorCurrency(srv.amountMinor)}
+                            </p>
+                            <p className="text-xs text-[#344054]">
+                              {srv.description}
+                            </p>
+                          </div>
                         </div>
                         <button
                           type="button"
@@ -2054,7 +2384,7 @@ export function VendorWorkspacePage() {
         >
           <SectionHeader
             title="Vendor Business Profile"
-            description="Keep your organization details and contact channels accurate."
+            description="Keep your organization details, credibility profile photo, and contact channels accurate."
           />
 
           {orgFormError && (
@@ -2062,6 +2392,61 @@ export function VendorWorkspacePage() {
               {orgFormError}
             </InlineAlert>
           )}
+
+          {/* Credibility Profile Picture / Business Logo Upload (Required) */}
+          <div className="rounded-[12px] border border-[#D7DEE8] bg-[#F4F6F9]/70 p-4 sm:p-5 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                {orgLogoUrl ? (
+                  <img
+                    src={orgLogoUrl}
+                    alt={orgName || 'Vendor profile photo'}
+                    referrerPolicy="no-referrer"
+                    className="h-16 w-16 rounded-full object-cover border-2 border-[#4778D8] bg-white shrink-0"
+                  />
+                ) : (
+                  <div className="inline-flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-[#98A2B3] bg-white text-[#697586] shrink-0">
+                    <Building2 className="h-6 w-6" aria-hidden="true" />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-bold text-[#142B4A]">
+                      Vendor Profile Picture / Logo
+                    </span>
+                    <span className="text-xs font-semibold text-[#B42318]">
+                      (Required)
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#475467]">
+                    Shown in the top navigation bar, on your public listing pages, and in customer enquiries.
+                  </p>
+                </div>
+              </div>
+
+              <label
+                htmlFor="edit-org-logo-input"
+                className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-[10px] bg-[#142B4A] px-4 py-2 text-xs font-semibold text-white hover:bg-[#1c3a63] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <Upload className="h-4 w-4" aria-hidden="true" />
+                <span>
+                  {isUploadingOrgLogo
+                    ? 'Processing…'
+                    : orgLogoUrl
+                    ? 'Change Profile Photo'
+                    : 'Upload Profile Photo'}
+                </span>
+                <input
+                  id="edit-org-logo-input"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleOrgLogoFileChange}
+                  disabled={isUploadingOrgLogo}
+                  className="sr-only"
+                />
+              </label>
+            </div>
+          </div>
 
           <FormField id="edit-org-name" label="Business name" required>
             <TextInput

@@ -42,7 +42,10 @@ import {
   ReportReasonCode,
   ReportRecord,
   SavedListingRecord,
+  PlatformCategoryConfig,
+  PlatformSettingsRecord,
 } from '../../types/marketplace';
+import { LAUNCH_CATEGORIES } from '../../lib/config/env';
 import { VendorOrganizationRecord } from '../../lib/permissions/access-control';
 import {
   SCHEMA_LIMITS,
@@ -78,6 +81,7 @@ export interface PublicVendorProfileSummary {
   slug: string;
   businessType: VendorOrganizationRecord['businessType'];
   description: string;
+  logoImageUrl: string | null;
   city: LaunchCity;
   state: string;
   publicEmail: string | null;
@@ -275,6 +279,7 @@ export async function getPublicVendorOrganizationSummary(
       slug: data.slug,
       businessType: data.businessType,
       description: data.description,
+      logoImageUrl: data.logoImageUrl || null,
       city: data.city as LaunchCity,
       state: data.state,
       publicEmail: allowPublicContact ? data.publicEmail || null : null,
@@ -979,6 +984,7 @@ export async function createVendorOrganizationWithOwner(
     businessType: VendorOrganizationRecord['businessType'];
     description: string;
     city: LaunchCity;
+    logoImageUrl?: string | null;
     publicEmail?: string | null;
     publicPhone?: string | null;
     whatsappNumber?: string | null;
@@ -993,6 +999,7 @@ export async function createVendorOrganizationWithOwner(
   const trimmedDesc = input.description
     .trim()
     .slice(0, SCHEMA_LIMITS.ORG_DESCRIPTION_MAX);
+  const trimmedLogo = input.logoImageUrl?.trim().slice(0, 300000) || null;
 
   if (trimmedName.length < SCHEMA_LIMITS.NAME_MIN) {
     throw new Error('Business name must be at least 2 characters.');
@@ -1002,6 +1009,11 @@ export async function createVendorOrganizationWithOwner(
       'Business description must be at least 10 characters describing your services.'
     );
   }
+  if (!trimmedLogo) {
+    throw new Error(
+      'Please upload a vendor profile picture or business logo to establish credibility.'
+    );
+  }
 
   const payload = {
     name: trimmedName,
@@ -1009,6 +1021,7 @@ export async function createVendorOrganizationWithOwner(
     businessType: input.businessType,
     description: trimmedDesc,
     ownerUid,
+    logoImageUrl: trimmedLogo,
     publicEmail: input.publicEmail?.trim().slice(0, 254) || null,
     publicPhone: input.publicPhone?.trim().slice(0, 32) || null,
     whatsappNumber: input.whatsappNumber?.trim().slice(0, 32) || null,
@@ -1059,6 +1072,7 @@ export async function updateVendorOrganization(
     businessType: VendorOrganizationRecord['businessType'];
     description: string;
     city: LaunchCity;
+    logoImageUrl?: string | null;
     publicEmail?: string | null;
     publicPhone?: string | null;
     whatsappNumber?: string | null;
@@ -1072,12 +1086,21 @@ export async function updateVendorOrganization(
   const trimmedDesc = input.description
     .trim()
     .slice(0, SCHEMA_LIMITS.ORG_DESCRIPTION_MAX);
+  const trimmedLogo =
+    input.logoImageUrl?.trim().slice(0, 300000) ||
+    existingOrg.logoImageUrl ||
+    null;
 
   if (trimmedName.length < SCHEMA_LIMITS.NAME_MIN) {
     throw new Error('Business name must be at least 2 characters.');
   }
   if (trimmedDesc.length < 10) {
     throw new Error('Business description must be at least 10 characters.');
+  }
+  if (!trimmedLogo) {
+    throw new Error(
+      'Please upload a vendor profile picture or business logo to establish credibility.'
+    );
   }
 
   const orgPath = `vendorOrganizations/${existingOrg.id}`;
@@ -1089,6 +1112,7 @@ export async function updateVendorOrganization(
       slug,
       businessType: input.businessType,
       description: trimmedDesc,
+      logoImageUrl: trimmedLogo,
       city: input.city,
       state: 'Delta',
       publicEmail: input.publicEmail?.trim().slice(0, 254) || null,
@@ -1565,6 +1589,7 @@ export async function createVendorListingService(
     description: string;
     categoryId: string;
     inclusions: string[];
+    imageUrl?: string | null;
     pricingModel: ListingServiceRecord['pricingModel'];
     amountMinor: number;
     sortOrder: number;
@@ -1572,6 +1597,7 @@ export async function createVendorListingService(
 ): Promise<ListingServiceRecord> {
   const trimmedName = input.name.trim().slice(0, 120);
   const trimmedDesc = input.description.trim().slice(0, 1500);
+  const trimmedImage = input.imageUrl?.trim().slice(0, 300000) || null;
 
   if (trimmedName.length < 2) {
     throw new Error('Package name must be at least 2 characters.');
@@ -1592,6 +1618,7 @@ export async function createVendorListingService(
       .map((s) => s.trim().slice(0, 120))
       .filter(Boolean)
       .slice(0, 15),
+    imageUrl: trimmedImage,
     currency: 'NGN' as const,
     pricingModel: input.pricingModel,
     amountMinor: Math.max(0, Math.round(input.amountMinor)),
@@ -2153,5 +2180,227 @@ export async function deleteCustomerEvent(
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
+
+/**
+ * Lists all vendor organizations for authorized platform administrators.
+ */
+export async function listAllVendorOrganizationsForAdmin(): Promise<VendorOrganizationRecord[]> {
+  const path = 'vendorOrganizations';
+  try {
+    const q = query(collection(db, path), limit(100));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({
+      id: d.id,
+      ...(d.data() as Omit<VendorOrganizationRecord, 'id'>),
+    }));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+/**
+ * Updates vendor organization verification and/or active status as an administrator.
+ * Writes an append-only AuditLog and in-app notification.
+ */
+export async function updateVendorVerificationAsAdmin(
+  adminUid: string,
+  adminEmail: string,
+  organization: VendorOrganizationRecord,
+  verificationStatus: 'verified' | 'pending' | 'rejected' | 'unverified',
+  status: 'active' | 'suspended' | 'archived',
+  reason: string
+): Promise<void> {
+  const orgPath = `vendorOrganizations/${organization.id}`;
+  try {
+    await updateDoc(doc(db, 'vendorOrganizations', organization.id), {
+      verificationStatus,
+      status,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, orgPath);
+  }
+
+  // Record AuditLog
+  const logId = `aud_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  try {
+    await setDoc(doc(db, 'auditLogs', logId), {
+      actorUid: adminUid,
+      actorEmail: adminEmail.slice(0, 254),
+      action: `vendor.verification.${verificationStatus}.${status}`,
+      targetType: 'vendorOrganization' as const,
+      targetId: organization.id,
+      reason:
+        reason.trim().slice(0, 1000) ||
+        `Verification marked as ${verificationStatus}, status ${status}`,
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `auditLogs/${logId}`);
+  }
+
+  // In-app Notification to vendor owner
+  const notifId = `ntf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  try {
+    await setDoc(doc(db, 'notifications', notifId), {
+      recipientUid: organization.ownerUid,
+      senderUid: adminUid,
+      type: 'account_update',
+      title: `Business Profile Verification Update: ${organization.name.slice(0, 50)}`,
+      body: `Your vendor account verification is now "${verificationStatus.toUpperCase()}" with status "${status.toUpperCase()}". ${reason.trim().slice(0, 200)}`,
+      entityType: 'account',
+      entityId: organization.id,
+      isRead: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch {
+    // Non-fatal
+  }
+}
+
+/**
+ * Lists recent customer quotes across all vendors for platform GMV calculation and administrative analytics.
+ */
+export async function listAllQuotesForAdmin(): Promise<QuoteRecord[]> {
+  const path = 'quotes';
+  try {
+    const q = query(collection(db, path), limit(150));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({
+      id: d.id,
+      ...(d.data() as Omit<QuoteRecord, 'id'>),
+    }));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+/**
+ * Lists recent customer enquiries across all vendors for platform demand analytics.
+ */
+export async function listAllEnquiriesForAdmin(): Promise<EnquiryRecord[]> {
+  const path = 'enquiries';
+  try {
+    const q = query(collection(db, path), limit(150));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({
+      id: d.id,
+      ...(d.data() as Omit<EnquiryRecord, 'id'>),
+    }));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+export const DEFAULT_PLATFORM_SETTINGS: PlatformSettingsRecord = {
+  id: 'marketplaceConfig',
+  defaultCommissionPercent: 10,
+  featuredListingFeeMinor: 500000, // ₦5,000 / week
+  categories: LAUNCH_CATEGORIES.map((cat) => ({
+    id: cat.id,
+    slug: cat.slug,
+    label: cat.label,
+    listingType: cat.listingType,
+    commissionPercent: cat.id === 'venue' ? 8 : cat.id === 'rentals' ? 15 : 10,
+    isActive: true,
+  })),
+};
+
+/**
+ * Fetches platform settings (category taxonomy & commission rates).
+ * Falls back safely to DEFAULT_PLATFORM_SETTINGS if not yet created in Firestore.
+ */
+export async function getPlatformSettings(): Promise<PlatformSettingsRecord> {
+  try {
+    const snap = await getDoc(doc(db, 'platformSettings', 'marketplaceConfig'));
+    if (!snap.exists()) {
+      return DEFAULT_PLATFORM_SETTINGS;
+    }
+    const data = snap.data();
+    let categories: PlatformCategoryConfig[] = DEFAULT_PLATFORM_SETTINGS.categories;
+    if (typeof data.categoriesJson === 'string') {
+      try {
+        const parsed = JSON.parse(data.categoriesJson);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          categories = parsed;
+        }
+      } catch {
+        // Fallback to default
+      }
+    }
+    return {
+      id: snap.id,
+      defaultCommissionPercent:
+        typeof data.defaultCommissionPercent === 'number'
+          ? data.defaultCommissionPercent
+          : 10,
+      featuredListingFeeMinor:
+        typeof data.featuredListingFeeMinor === 'number'
+          ? data.featuredListingFeeMinor
+          : 500000,
+      categories,
+      updatedBy: data.updatedBy || null,
+      updatedAt: data.updatedAt,
+    };
+  } catch {
+    return DEFAULT_PLATFORM_SETTINGS;
+  }
+}
+
+/**
+ * Updates platform configuration (categories and commission rates) as an administrator.
+ */
+export async function updatePlatformSettingsAsAdmin(
+  adminUid: string,
+  adminEmail: string,
+  settings: {
+    defaultCommissionPercent: number;
+    featuredListingFeeMinor: number;
+    categories: PlatformCategoryConfig[];
+  }
+): Promise<PlatformSettingsRecord> {
+  const path = 'platformSettings/marketplaceConfig';
+  const categoriesJson = JSON.stringify(settings.categories);
+  const payload = {
+    id: 'marketplaceConfig',
+    defaultCommissionPercent: Math.max(
+      0,
+      Math.min(100, Math.round(settings.defaultCommissionPercent))
+    ),
+    featuredListingFeeMinor: Math.max(0, Math.round(settings.featuredListingFeeMinor)),
+    categoriesJson: categoriesJson.slice(0, 50000),
+    updatedBy: adminUid,
+    updatedAt: serverTimestamp(),
+  };
+
+  try {
+    await setDoc(doc(db, 'platformSettings', 'marketplaceConfig'), payload);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+
+  // Record AuditLog
+  const logId = `aud_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  try {
+    await setDoc(doc(db, 'auditLogs', logId), {
+      actorUid: adminUid,
+      actorEmail: adminEmail.slice(0, 254),
+      action: 'platformSettings.update',
+      targetType: 'platformSettings' as const,
+      targetId: 'marketplaceConfig',
+      reason: `Updated default commission to ${payload.defaultCommissionPercent}% and saved ${settings.categories.length} categories`,
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `auditLogs/${logId}`);
+  }
+
+  return {
+    ...payload,
+    categories: settings.categories,
+  };
+}
+
 
 

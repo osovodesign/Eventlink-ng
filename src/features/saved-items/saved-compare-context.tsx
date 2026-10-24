@@ -71,12 +71,19 @@ export function SavedCompareProvider({
 
     async function loadUserSavedAndComparison() {
       if (!firebaseUser) return;
+
+      // 1. Fetch saved listings
       try {
         const saved = await listUserSavedListings(firebaseUser.uid);
-        if (!cancelled) {
+        if (!cancelled && Array.isArray(saved)) {
           setSavedListingIds(saved.map((item) => item.listingId));
         }
+      } catch (err) {
+        console.warn('[EventLink SavedCompare] Could not load saved listings:', err);
+      }
 
+      // 2. Fetch venue comparison shortlist
+      try {
         const compId = `${firebaseUser.uid}_default`;
         const compSnap = await getDoc(doc(db, 'comparisons', compId));
         if (!cancelled && compSnap.exists()) {
@@ -86,9 +93,14 @@ export function SavedCompareProvider({
               ? data.listingIds.slice(0, SCHEMA_LIMITS.COMPARISON_MAX_ITEMS)
               : []
           );
+        } else if (!cancelled) {
+          setCompareListingIds([]);
         }
       } catch (err) {
-        console.error('[EventLink SavedCompare] Failed to load:', err);
+        console.warn('[EventLink SavedCompare] Could not load comparison shortlist:', err);
+        if (!cancelled) {
+          setCompareListingIds([]);
+        }
       }
     }
 

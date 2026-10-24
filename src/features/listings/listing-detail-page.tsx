@@ -656,35 +656,45 @@ export function ListingDetailPage({
                       key={service.id}
                       className="rounded-[12px] border border-[#D7DEE8] bg-[#F4F6F9]/50 p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4"
                     >
-                      <div className="space-y-2.5 max-w-xl">
-                        <h3 className="text-base font-bold text-[#142B4A]">
-                          {service.name}
-                        </h3>
-                        <p className="text-sm text-[#344054] leading-relaxed">
-                          {service.description}
-                        </p>
-
-                        {service.inclusions && service.inclusions.length > 0 && (
-                          <div className="pt-1">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-[#697586] mb-2">
-                              What is included
-                            </p>
-                            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-[#172B4D]">
-                              {service.inclusions.map((inc, idx) => (
-                                <li
-                                  key={`${service.id}-inc-${idx}`}
-                                  className="flex items-start gap-2"
-                                >
-                                  <CheckCircle2
-                                    className="h-3.5 w-3.5 text-[#146C43] shrink-0 mt-0.5"
-                                    aria-hidden="true"
-                                  />
-                                  <span>{inc}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
+                      <div className="flex flex-col sm:flex-row items-start gap-4 max-w-2xl">
+                        {service.imageUrl && (
+                          <img
+                            src={service.imageUrl}
+                            alt={`${service.name} package photograph`}
+                            referrerPolicy="no-referrer"
+                            className="w-full sm:w-44 aspect-[4/3] rounded-[10px] object-cover border border-[#D7DEE8] bg-white shrink-0"
+                          />
                         )}
+                        <div className="space-y-2.5">
+                          <h3 className="text-base font-bold text-[#142B4A]">
+                            {service.name}
+                          </h3>
+                          <p className="text-sm text-[#344054] leading-relaxed">
+                            {service.description}
+                          </p>
+
+                          {service.inclusions && service.inclusions.length > 0 && (
+                            <div className="pt-1">
+                              <p className="text-xs font-semibold uppercase tracking-wider text-[#697586] mb-2">
+                                What is included
+                              </p>
+                              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-[#172B4D]">
+                                {service.inclusions.map((inc, idx) => (
+                                  <li
+                                    key={`${service.id}-inc-${idx}`}
+                                    className="flex items-start gap-2"
+                                  >
+                                    <CheckCircle2
+                                      className="h-3.5 w-3.5 text-[#146C43] shrink-0 mt-0.5"
+                                      aria-hidden="true"
+                                    />
+                                    <span>{inc}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="sm:text-right flex sm:flex-col items-center sm:items-end justify-between gap-3 shrink-0 border-t sm:border-t-0 border-[#E9EDF3] pt-3 sm:pt-0">
@@ -825,12 +835,21 @@ export function ListingDetailPage({
               className="rounded-[14px] border border-[#D7DEE8] bg-white p-6 space-y-4"
             >
               <div className="flex items-start gap-3.5">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-[12px] bg-[#F4F6F9] border border-[#D7DEE8] text-[#142B4A] shrink-0">
-                  <Building2
-                    className="h-5 w-5 text-[#4778D8]"
-                    aria-hidden="true"
+                {vendorSummary?.logoImageUrl ? (
+                  <img
+                    src={vendorSummary.logoImageUrl}
+                    alt={`${vendorSummary.name} profile picture`}
+                    referrerPolicy="no-referrer"
+                    className="h-14 w-14 rounded-full object-cover border-2 border-[#4778D8] bg-white shrink-0"
                   />
-                </div>
+                ) : (
+                  <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#F4F6F9] border border-[#D7DEE8] text-[#142B4A] shrink-0">
+                    <Building2
+                      className="h-6 w-6 text-[#4778D8]"
+                      aria-hidden="true"
+                    />
+                  </div>
+                )}
                 <div className="space-y-1">
                   <span className="text-xs font-semibold uppercase tracking-wider text-[#697586]">
                     Managed by vendor organization
@@ -851,6 +870,15 @@ export function ListingDetailPage({
                         ? `${vendorSummary.city}, ${vendorSummary.state} State`
                         : `${listing.city}, Delta State`}
                     </span>
+                    {vendorSummary?.logoImageUrl && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span className="inline-flex items-center gap-1 font-medium text-[#146C43]">
+                          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          Verified profile photo
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

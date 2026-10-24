@@ -44,6 +44,7 @@ import {
 export interface ProfileUpdateInput {
   displayName?: string;
   phone?: string | null;
+  photoPath?: string | null;
   preferredLocale?: 'en-NG' | 'en-GB' | 'en-US';
   intendedRole?: IntendedRole;
   onboardingStatus?: OnboardingStatus;
@@ -312,6 +313,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updates.phone !== undefined
           ? sanitizePhone(updates.phone)
           : userProfile.phone ?? null;
+      const nextPhotoPath =
+        updates.photoPath !== undefined
+          ? updates.photoPath
+            ? updates.photoPath.trim().slice(0, 300000)
+            : null
+          : userProfile.photoPath ?? null;
       const nextLocale = updates.preferredLocale ?? userProfile.preferredLocale;
       const nextIntendedRole = updates.intendedRole ?? userProfile.intendedRole;
       const nextOnboardingStatus =
@@ -324,6 +331,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await updateDoc(userRef, {
           displayName: nextDisplayName,
           phone: nextPhone,
+          photoPath: nextPhotoPath,
           preferredLocale: nextLocale,
           intendedRole: nextIntendedRole,
           onboardingStatus: nextOnboardingStatus,
@@ -339,6 +347,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               ...prev,
               displayName: nextDisplayName,
               phone: nextPhone,
+              photoPath: nextPhotoPath,
               preferredLocale: nextLocale,
               intendedRole: nextIntendedRole,
               onboardingStatus: nextOnboardingStatus,
