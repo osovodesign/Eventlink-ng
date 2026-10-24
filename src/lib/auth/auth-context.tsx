@@ -4,12 +4,17 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useRef,
 } from 'react';
 import {
   User as FirebaseUser,
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  updateProfile,
 } from 'firebase/auth';
 import {
   collection,
@@ -50,6 +55,19 @@ export interface ProfileUpdateInput {
   onboardingStatus?: OnboardingStatus;
 }
 
+export interface EmailSignUpInput {
+  displayName: string;
+  email: string;
+  password: string;
+  intendedRole?: IntendedRole;
+}
+
+export interface EmailSignInInput {
+  email: string;
+  password: string;
+  intendedRole?: IntendedRole;
+}
+
 interface AuthContextValue {
   isAuthReady: boolean;
   isSigningIn: boolean;
@@ -59,7 +77,16 @@ interface AuthContextValue {
   vendorOrganization: VendorOrganizationRecord | null;
   vendorMembership: VendorMembershipRecord | null;
   isAdmin: boolean;
-  signInWithGoogle: (options?: { intendedRole?: IntendedRole }) => Promise<UserProfileRecord | null>;
+  signInWithGoogle: (options?: {
+    intendedRole?: IntendedRole;
+  }) => Promise<UserProfileRecord | null>;
+  signUpWithEmail: (
+    input: EmailSignUpInput
+  ) => Promise<UserProfileRecord | null>;
+  signInWithEmail: (
+    input: EmailSignInInput
+  ) => Promise<UserProfileRecord | null>;
+  sendPasswordReset: (email: string) => Promise<boolean>;
   updateUserProfile: (updates: ProfileUpdateInput) => Promise<void>;
   requestAccountDeletion: () => Promise<void>;
   refreshVendorContext: () => Promise<void>;
@@ -69,9 +96,43 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function mapFirebaseAuthErrorMessage(
+  error: unknown,
+  fallbackMessage: string
+): string {
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  if (rawMessage.includes('auth/popup-closed-by-user')) {
+    return 'Sign-in popup was closed before completing authentication.';
+  }
+  if (rawMessage.includes('auth/email-already-in-use')) {
+    return 'An account with this email address already exists. Please sign in instead.';
+  }
+  if (
+    rawMessage.includes('auth/invalid-credential') ||
+    rawMessage.includes('auth/wrong-password') ||
+    rawMessage.includes('auth/user-not-found')
+  ) {
+    return 'Invalid email or password. Please check your credentials and try again.';
+  }
+  if (rawMessage.includes('auth/invalid-email')) {
+    return 'Please enter a valid email address.';
+  }
+  if (rawMessage.includes('auth/weak-password')) {
+    return 'Password is too weak. Please use at least 6 characters.';
+  }
+  if (rawMessage.includes('auth/too-many-requests')) {
+    return 'Too many unsuccessful attempts. Please wait a moment or reset your password.';
+  }
+  if (rawMessage.includes('auth/operation-not-allowed')) {
+    return 'Email/Password sign-in is not yet enabled in the Firebase Console. Enable "Email/Password" under Authentication → Sign-in method in Firebase Console.';
+  }
+  return fallbackMessage;
+}
+
 async function ensureUserProfile(
   fbUser: FirebaseUser,
-  preferredIntendedRole: IntendedRole = 'customer'
+  preferredIntendedRole: IntendedRole = 'customer',
+  preferredDisplayName?: string
 ): Promise<UserProfileRecord> {
   const userPath = `users/${fbUser.uid}`;
   const userRef = doc(db, 'users', fbUser.uid);
@@ -85,26 +146,52 @@ async function ensureUserProfile(
 
   if (existingSnap && existingSnap.exists()) {
     const data = existingSnap.data() as UserProfileRecord;
-    // Update lastLoginAt if account is active
+    let updatedDisplayName = data.displayName;
+    let updatedIntendedRole = data.intendedRole;
+
     if (data.accountStatus === 'active') {
+      const patchPayload: Record<string, unknown> = {
+        lastLoginAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      if (
+        preferredDisplayName &&
+        preferredDisplayName.trim().length >= 1 &&
+        data.displayName === (fbUser.email?.split('@')[0] || 'EventLink User')
+      ) {
+        updatedDisplayName = sanitizeDisplayName(preferredDisplayName);
+        patchPayload.displayName = updatedDisplayName;
+      }
+
+      if (
+        preferredIntendedRole === 'vendor' &&
+        data.intendedRole === 'customer'
+      ) {
+        updatedIntendedRole = 'both';
+        patchPayload.intendedRole = 'both';
+      }
+
       try {
-        await updateDoc(userRef, {
-          lastLoginAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
+        await updateDoc(userRef, patchPayload);
       } catch {
-        // Non-fatal if timestamp touch fails
+        // Non-fatal if timestamp/role touch fails
       }
     }
     return {
       ...data,
+      displayName: updatedDisplayName,
+      intendedRole: updatedIntendedRole,
       uid: fbUser.uid,
     };
   }
 
   // Create initial user profile conforming strictly to firebase-blueprint.json & firestore.rules
   const safeDisplayName = sanitizeDisplayName(
-    fbUser.displayName || fbUser.email?.split('@')[0] || 'EventLink User'
+    preferredDisplayName ||
+      fbUser.displayName ||
+      fbUser.email?.split('@')[0] ||
+      'EventLink User'
   );
   const safeEmail = (fbUser.email || 'user@eventlink.ng').slice(0, 254);
 
@@ -202,9 +289,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useState<VendorMembershipRecord | null>(null);
   const [hasAdminRecord, setHasAdminRecord] = useState(false);
 
+  const pendingAuthOptionsRef = useRef<{
+    intendedRole?: IntendedRole;
+    displayName?: string;
+  } | null>(null);
+
   const loadAuthenticatedUser = useCallback(
-    async (fbUser: FirebaseUser, intendedRole: IntendedRole = 'customer') => {
-      const profile = await ensureUserProfile(fbUser, intendedRole);
+    async (
+      fbUser: FirebaseUser,
+      intendedRole?: IntendedRole,
+      displayName?: string
+    ) => {
+      const resolvedRole =
+        intendedRole || pendingAuthOptionsRef.current?.intendedRole || 'customer';
+      const resolvedName =
+        displayName || pendingAuthOptionsRef.current?.displayName;
+      const profile = await ensureUserProfile(
+        fbUser,
+        resolvedRole,
+        resolvedName
+      );
       const { vendorOrg, membership, hasAdminDoc } =
         await fetchVendorAndAdminContext(fbUser);
       setUserProfile(profile);
@@ -247,54 +351,152 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (options?: { intendedRole?: IntendedRole }) => {
       setIsSigningIn(true);
       setAuthError(null);
+      pendingAuthOptionsRef.current = {
+        intendedRole: options?.intendedRole || 'customer',
+      };
       try {
         const credential = await signInWithPopup(auth, googleProvider);
         const profile = await loadAuthenticatedUser(
           credential.user,
           options?.intendedRole || 'customer'
         );
-
-        // If user selected vendor intent on an existing customer profile, upgrade intendedRole safely
-        if (
-          options?.intendedRole === 'vendor' &&
-          profile.intendedRole === 'customer' &&
-          profile.accountStatus === 'active'
-        ) {
-          const userRef = doc(db, 'users', credential.user.uid);
-          try {
-            await updateDoc(userRef, {
-              intendedRole: 'both',
-              updatedAt: serverTimestamp(),
-            });
-            setUserProfile((prev) =>
-              prev ? { ...prev, intendedRole: 'both' } : prev
-            );
-          } catch (error) {
-            handleFirestoreError(
-              error,
-              OperationType.UPDATE,
-              `users/${credential.user.uid}`
-            );
-          }
-        }
         return profile;
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Authentication failed';
-        if (message.includes('auth/popup-closed-by-user')) {
-          setAuthError('Sign-in popup was closed before completing authentication.');
-        } else {
-          setAuthError(
+        setAuthError(
+          mapFirebaseAuthErrorMessage(
+            error,
             'Could not complete Google sign-in. Please verify your connection and try again.'
-          );
-        }
+          )
+        );
         return null;
       } finally {
+        pendingAuthOptionsRef.current = null;
         setIsSigningIn(false);
       }
     },
     [loadAuthenticatedUser]
   );
+
+  const signUpWithEmail = useCallback(
+    async (input: EmailSignUpInput) => {
+      const trimmedEmail = input.email.trim();
+      const trimmedName = sanitizeDisplayName(input.displayName);
+      if (!trimmedName || trimmedName.length < 2) {
+        setAuthError('Please enter your full name (at least 2 characters).');
+        return null;
+      }
+      if (!trimmedEmail) {
+        setAuthError('Please enter your email address.');
+        return null;
+      }
+      if (!input.password || input.password.length < 6) {
+        setAuthError('Password must be at least 6 characters long.');
+        return null;
+      }
+
+      setIsSigningIn(true);
+      setAuthError(null);
+      pendingAuthOptionsRef.current = {
+        intendedRole: input.intendedRole || 'customer',
+        displayName: trimmedName,
+      };
+
+      try {
+        const credential = await createUserWithEmailAndPassword(
+          auth,
+          trimmedEmail,
+          input.password
+        );
+        try {
+          await updateProfile(credential.user, {
+            displayName: trimmedName,
+          });
+        } catch {
+          // Non-fatal if Auth profile displayName update fails
+        }
+        const profile = await loadAuthenticatedUser(
+          credential.user,
+          input.intendedRole || 'customer',
+          trimmedName
+        );
+        return profile;
+      } catch (error) {
+        setAuthError(
+          mapFirebaseAuthErrorMessage(
+            error,
+            'Could not create your account. Please verify your details and try again.'
+          )
+        );
+        return null;
+      } finally {
+        pendingAuthOptionsRef.current = null;
+        setIsSigningIn(false);
+      }
+    },
+    [loadAuthenticatedUser]
+  );
+
+  const signInWithEmail = useCallback(
+    async (input: EmailSignInInput) => {
+      const trimmedEmail = input.email.trim();
+      if (!trimmedEmail || !input.password) {
+        setAuthError('Please enter both your email address and password.');
+        return null;
+      }
+
+      setIsSigningIn(true);
+      setAuthError(null);
+      pendingAuthOptionsRef.current = {
+        intendedRole: input.intendedRole || 'customer',
+      };
+
+      try {
+        const credential = await signInWithEmailAndPassword(
+          auth,
+          trimmedEmail,
+          input.password
+        );
+        const profile = await loadAuthenticatedUser(
+          credential.user,
+          input.intendedRole || 'customer'
+        );
+        return profile;
+      } catch (error) {
+        setAuthError(
+          mapFirebaseAuthErrorMessage(
+            error,
+            'Could not sign in with email and password. Please try again.'
+          )
+        );
+        return null;
+      } finally {
+        pendingAuthOptionsRef.current = null;
+        setIsSigningIn(false);
+      }
+    },
+    [loadAuthenticatedUser]
+  );
+
+  const sendPasswordReset = useCallback(async (email: string) => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setAuthError('Please enter your email address first to reset your password.');
+      return false;
+    }
+    setAuthError(null);
+    try {
+      await sendPasswordResetEmail(auth, trimmedEmail);
+      return true;
+    } catch (error) {
+      setAuthError(
+        mapFirebaseAuthErrorMessage(
+          error,
+          'Could not send password reset email. Please verify the email address.'
+        )
+      );
+      return false;
+    }
+  }, []);
 
   const updateUserProfile = useCallback(
     async (updates: ProfileUpdateInput) => {
@@ -415,6 +617,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         vendorMembership,
         isAdmin,
         signInWithGoogle,
+        signUpWithEmail,
+        signInWithEmail,
+        sendPasswordReset,
         updateUserProfile,
         requestAccountDeletion,
         refreshVendorContext,

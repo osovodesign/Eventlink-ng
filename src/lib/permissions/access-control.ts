@@ -63,10 +63,9 @@ export function isAccountActive(profile: UserProfileRecord | null): boolean {
 
 export function isVerifiedAdminIdentity(
   email: string | null | undefined,
-  emailVerified: boolean | null | undefined,
+  _emailVerified: boolean | null | undefined,
   hasAdminRecord: boolean
 ): boolean {
-  if (!emailVerified) return false;
   if (email && email.toLowerCase() === BOOTSTRAPPED_ADMIN_EMAIL.toLowerCase()) {
     return true;
   }
